@@ -14,4 +14,4 @@ Hier findet ihr den Quellcode der pico**RC** Fernbedienung für den **PiMowBot**
 - Mit Hilfe der Thonny IDE (https://thonny.org/) werden diese Dateien (***Logo.jpg*** und ***RControl.py***) des Repositories auf den Flashspeicher des Pico W übertragen.
 - Vor Ausführung des *RControl.py* Skriptes sollten die Werte für **_SSID**, **_PASSWORD**, **_HOST** und **_TOKEN** zu Beginn des *RControl.py* MicroPython Skriptes entsprechend angepasst werden.
 ### Wichtig:
-Euer PiMowBot benötigt ein aktuelle Release (Stand: 14.November 2022), damit die Bildübertragung zur RC funktioniert.  
+Euer **PiMowBot** benötigt ein aktuelle Release (Stand: **14. November 2022**), damit die Bildübertragung zur RC funktioniert.  
