@@ -1,6 +1,6 @@
 # PiMowBot-RC
+![picoRC 4 PiMowBot!](/Logo.jpg "picoRC 4 PiMowBot") 
 This is the code of **RControl 4 PiMowBot** ( http://pimowbot.tgd-consulting.de ).
-![picoRC 4 PiMowBot!](/Logo.jpg "picoRC 4 PiMowBot")
 ___
 Hier findet ihr den Quellcode der pico**RC** Fernbedienung für den **PiMowBot** ( http://pimowbot.tgd-consulting.de ).
 
