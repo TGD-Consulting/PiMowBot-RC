@@ -1,2 +1,2 @@
 # PiMowBot-RC
-Code of RControl 4 PiMowBot
+This is the code of RControl 4 PiMowBot. 
