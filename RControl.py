@@ -11,8 +11,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.0                                                           *
-# *  Datum 11.11.2022                                                        *
+# *  Version 0.1.1                                                           *
+# *  Datum 16.11.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -67,6 +67,8 @@ def blink(timer):
 D = "unknown"    # current direction
 S = 200          # Status Code
 a = "none"       # alert note
+lt = 0           # normal thumbs
+bta = 1          # Darstellung der Steuerbutton
 
 def motor_stop():
     global D
@@ -161,11 +163,16 @@ def do_shutdown():
 
 def toggle_mower():                  #Mähmotor an/aus
     print ("Mowing On/Off") 
+    get_request("http://" + pip + ":8080/cgi-bin/control.html?Token=" + _TOKEN + "&mower=%E2%9C%87")
 
-def do_special():                    #Fahrtenschreiber an/aus 
+def do_special():                    #Fahrtenschreiber an/aus geht nur per Websocket
     print ("Blackbox On/Off") 
 
-def get_request(URL, type="HEAD"):
+def do_notaus():                     #NotAus Wird bei btn und Steuerkreuz aktiviert 
+    print ("NotAus")
+    get_request("http://" + pip + ":8080/cgi-bin/control.html?Token=" + _TOKEN + "&motor=%E2%8A%97")
+
+def get_request(URL, type="HEAD", format="BIN"):
     rc = False
     try:
         jetzt = ticks_ms()
@@ -178,7 +185,10 @@ def get_request(URL, type="HEAD"):
             #print(gc.mem_free())
             #print(gc.mem_alloc())
             response = urequests.get(URL)
-            rc = response.content
+            if (format == "BIN"):
+                rc = response.content
+            else:
+                rc = response.text
         S = response.status_code
         print("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
     except:
@@ -219,60 +229,65 @@ def display_cinema():
     display.remove_clip()
 
 def display_up(set=True):
-    if set:
-        RED = display.create_pen(250, 132, 132)
-        display.set_pen(RED)
-    else:
-        DGREY = display.create_pen(80, 80, 80)
-        display.set_pen(DGREY)
-    display.triangle(_OX, _OY - 18, _OX - 10, _OY - 10, _OX + 10, _OY - 10) #up
-    display.update()
+    if (bta == 1):
+        if set:
+            RED = display.create_pen(250, 132, 132)
+            display.set_pen(RED)
+        else:
+            DGREY = display.create_pen(80, 80, 80)
+            display.set_pen(DGREY)
+        display.triangle(_OX, _OY - 18, _OX - 10, _OY - 10, _OX + 10, _OY - 10) #up
+        display.update()
     
 def display_down(set=True):
-    if set:
-        RED = display.create_pen(250, 132, 132)
-        display.set_pen(RED)
-    else:
-        DGREY = display.create_pen(80, 80, 80)
-        display.set_pen(DGREY)
-    display.triangle(_OX, _OY + 18, _OX + 10, _OY + 10, _OX - 10, _OY + 10) #down
-    display.update()
+    if (bta == 1):
+        if set:
+            RED = display.create_pen(250, 132, 132)
+            display.set_pen(RED)
+        else:
+            DGREY = display.create_pen(80, 80, 80)
+            display.set_pen(DGREY)
+        display.triangle(_OX, _OY + 18, _OX + 10, _OY + 10, _OX - 10, _OY + 10) #down
+        display.update()
  
 def display_left(set=True):
-    if set:
-        RED = display.create_pen(250, 132, 132)
-        display.set_pen(RED)
-    else:
-        DGREY = display.create_pen(80, 80, 80)
-        display.set_pen(DGREY)
-    display.triangle(_OX - 18, _OY, _OX - 10, _OY - 10, _OX - 10, _OY + 10) #left
-    display.update()        
+    if (bta == 1):
+        if set:
+            RED = display.create_pen(250, 132, 132)
+            display.set_pen(RED)
+        else:
+            DGREY = display.create_pen(80, 80, 80)
+            display.set_pen(DGREY)
+        display.triangle(_OX - 18, _OY, _OX - 10, _OY - 10, _OX - 10, _OY + 10) #left
+        display.update()        
 
 def display_right(set=True):
-    if set:
-        RED = display.create_pen(250, 132, 132)
-        display.set_pen(RED)
-    else:
-        DGREY = display.create_pen(80, 80, 80)
-        display.set_pen(DGREY)
-    display.triangle(_OX + 18, _OY, _OX + 10, _OY - 10, _OX + 10, _OY + 10) #right
-    display.update()
+    if (bta == 1):
+        if set:
+            RED = display.create_pen(250, 132, 132)
+            display.set_pen(RED)
+        else:
+            DGREY = display.create_pen(80, 80, 80)
+            display.set_pen(DGREY)
+        display.triangle(_OX + 18, _OY, _OX + 10, _OY - 10, _OX + 10, _OY + 10) #right
+        display.update()
 
 def display_center(set=True):
-    if set:
-        RED = display.create_pen(250, 132, 132)
-        display.set_pen(RED)
-    else:
-        GREY = display.create_pen(132, 132, 132)
-        display.set_pen(GREY)
-    display.circle(_OX, _OY, 5)      # Center btn
-    display.update()
+    if (bta == 1):
+        if set:
+            RED = display.create_pen(250, 132, 132)
+            display.set_pen(RED)
+        else:
+            GREY = display.create_pen(132, 132, 132)
+            display.set_pen(GREY)
+        display.circle(_OX, _OY, 5)      # Center btn
+        display.update()
 
 def display_dleft(set=True):
-    if set:
+     if set:
         display_up()
         display_left()
-    else:
+     else:
         display_up(0)
         display_left(0)
 
@@ -406,7 +421,10 @@ async def refresh_display():
                File = open ("image.jpg","wb")
                File.write(image)
                File.close()
-               display_image("image.jpg",143,33)
+               if (lt == 1):
+                   display_image("image.jpg",0,0)
+               else:
+                   display_image("image.jpg",143,33)
                n = 0
                i = 0
 
@@ -473,16 +491,22 @@ async def do_buttons():
         if (btnA.value() == 0) and (btnB.value() == 0):
             do_shutdown()
         if (btnA.value() == 0):
-            if (btnA_rel == True):
-                btnA_rel = False
-                toggle_mower()                
+            if (nojoy == 0):
+                do_notaus()
+            else:
+                if (btnA_rel == True):
+                    btnA_rel = False
+                    toggle_mower()                
         else:
             btnA_rel = True
             
         if (btnB.value() == 0):
-            if (btnB_rel == True):
-                btnB_rel = False
-                do_special()
+            if (nojoy == 0):
+                do_notaus()
+            else:
+                if (btnB_rel == True):
+                    btnB_rel = False
+                    do_special()
         else:
             btnB_rel = True
         
@@ -545,11 +569,18 @@ try:
                 # now check PiCAM
                 pc = get_request("http://" + pip + ":8080/image.jpg")
                 print('PiMowBot-PiCAM is ready.')
+                # now check large thumb support
+                lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
+                if (0 <= lt.find('1')):
+                   lt = 1
+                else:
+                   lt = 0
+                print(f'Large thumb mode "{lt}"')
             else:
                 print('PiMowBot is not ready !!!')
                 if ip:
                      a = "PiMowBot not found"
-                     #display_alert()
+                     display_alert()
             ws_avail = get_request("http://" + pip + ":8008/echo")
             print(f'Websocket available {ws_avail}')
         else:
@@ -559,9 +590,11 @@ try:
         print('Raspberry Pi Pico W required')
         a = "  Pico W required  "
         display_alert()
-    if (pc == True) and (a == "none"):
+    if (pc == True) and (lt == 0) and (a == "none"):
         display_cinema()     # PiCAM Kinovorstellung ist eröffnet
     display_dir()            # kurze Vorstellung der Steuerung
+    if (lt == 1):
+        bta = 0              # Steuerbutton nicht darstellen
     gc.enable()
     display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
     uasyncio.run(coop_tasks())
