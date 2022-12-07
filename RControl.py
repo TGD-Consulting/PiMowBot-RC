@@ -74,7 +74,7 @@ bta = 1          # Darstellung der Steuerbutton
 def log(msg):
     if _LOG:
         lfile=open("myLog.txt","a")
-        lfile.write('{'+ str(msg) +',"Zeit":"'+ me.strftime() +'"},'+'\n')
+        lfile.write('{'+ str(msg) +'},'+'\n')
         lfile.close()
     else:
         print(msg)
