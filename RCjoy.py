@@ -19,23 +19,28 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.3                                                           *
-# *  Datum 06.12.2022                                                        *
+# *  Version 0.1.4                                                           *
+# *  Datum 07.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
 
 from micropython import const
-from machine import ADC, Pin, Timer, reset
+from machine import ADC, Pin, SPI, Timer, RTC, reset
 import network as net
 import uasyncio as a
 import urequests as r
 import gc
+import gc9a01
 from os import stat, rename
 from ws import AsyncWebsocketClient            # https://github.com/Vovaman/micropython_async_websocket_client
 from socket import getaddrinfo
-from time import sleep, ticks_ms, ticks_diff
+from time import sleep, ticks_ms, ticks_diff, localtime
 from math import atan2, degrees, sqrt
+
+#/*************************
+# *** Globale Parameter ***
+# *************************/
 
 # WiFi Credentials
 _SSID = const('Your_SSID_Name')         # change to your WiFi SSID
@@ -58,6 +63,29 @@ _NX = const(False)
 _NY = const(True) # negiert Y Werte
 #_NZ = const(False)
 
+#/*************************
+# *** Display Parameter ***
+# *************************/
+
+_BLK = const(10)  # GPIO10, Pin#14, BLK
+_RST = const(11)  # GPIO11, Pin#15, RES
+_DC = const(12)   # GPIO12, Pin#16,  DC
+_CS = const(13)   # GPIO13, Pin#17,  CS
+                  #    GND, Pin#18, GND
+_SCL = const(14)  # GPIO14, Pin#19  SCL
+_SDA = const(15)  # GPIO15, Pin#20  SDA
+
+spi = SPI(1, baudrate=60000000, sck=Pin(_SCL), mosi=Pin(_SDA))
+display = gc9a01.GC9A01(
+        spi,
+        240,
+        240,
+        reset=Pin(_RST, Pin.OUT),
+        cs=Pin(_CS, Pin.OUT),
+        dc=Pin(_DC, Pin.OUT),
+        backlight=Pin(_BLK, Pin.OUT),
+        rotation=2) # 180Grad
+
 # create instance of websocket client
 ws = AsyncWebsocketClient(_SOCKET_DELAY_MS)
 
@@ -79,7 +107,8 @@ ec = 0            # error counter
 def log(msg):
     if _LOG:
         lfile=open("myLog.txt","a")
-        lfile.write('{'+ str(msg) +'},'+'\n')
+        ts = localtime()  #(2022, 12, 7, 17, 58, 54, 2, 341)
+        lfile.write(str(ts[2])+'.'+str(ts[1])+'.'+str(ts[0])+' '+str(ts[3])+':'+str(ts[4])+':'++str(ts[5])+' '+ str(msg) +'\n')
         lfile.close()
     else:
         print(msg)
@@ -87,7 +116,7 @@ def log(msg):
 def do_rmp():
     try:
         stat("main.py")
-        log("Info: benenne main.py in main_.py um")
+        log("INFO: benenne main.py in main_.py um")
         rename("main.py","main_.py")
         reset()
         return True
@@ -113,11 +142,40 @@ def restore(abtn=_BTN):
                 t = 0
         sleep(0.1)
 
+def reset_display():
+    # enable display and clear screen
+    display.init()
+    
 def display_text(text):
     print("display not implemented yet: "+text)  
 
 def display_alert(toggle=True):
     print("display not implemented yet: "+al)
+
+def display_image(file="image.jpg", x=0, y=0):
+    log("Display image: " + file)
+    #display.jpg(file, x, y, gc9a01.FAST)
+    display.jpg(file, x, y, gc9a01.SLOW)
+    gc.collect()     #Run a garbage collection.
+
+def set_rtc(timestamp):
+    import ujson
+    i=ujson.loads('{"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}')
+    w=ujson.loads('{"Mon,":"0","Tue,":"1","Wed,":"2","Thu,":"3","Fri,":"4","Sat,":"5","Sun,":"6"}')
+    ts=timestamp # "Wed, 07 Feb 2022 10:06:56 GMT"
+    el=ts.split(" ")
+    wd=w[el[0]]
+    d=el[1]
+    m=i[el[2]]
+    y=el[3]
+    zeit=el[4]
+    h=zeit.split(":")[0]
+    M=zeit.split(":")[1]
+    s=zeit.split(":")[2]
+    #print(int(y),int(m),int(d),int(h),int(M),int(s))
+    RTC().datetime((int(y), int(m), int(d), int(wd), int(h), int(M), int(s), 0))
+    log("INFO: Zeit erfolgreich gesetzt ("+timestamp+')')
+    return True
 
 def get_request(URL, type="HEAD", format="BIN"):
     rc = False
@@ -130,7 +188,8 @@ def get_request(URL, type="HEAD", format="BIN"):
         else:
             if (type == "TIME"):
                 response = r.head(URL)
-                rc == log("Timestamp: "+response.headers['Date'])
+                if 200 == response.status_code and set_rtc(response.headers['Date']):
+                    rc = True
             else:
                 gc.collect()     #Run a garbage collection.
                 response = r.get(URL)
@@ -157,8 +216,7 @@ def gathered(IP):
         pip = get_ip(_HOST)
         print(f'PiMowBot IP is {pip}')
         sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
-        rc = get_request("http://" + pip, "TIME")
-        rc = get_request("http://" + pip + ":8080/favicon.ico")
+        rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
         if (True == rc):
             print('PiMowBot is ready 4 RC.')
             # now check PiCAM
@@ -166,10 +224,11 @@ def gathered(IP):
             print('PiMowBot-PiCAM is ready.')
             # now check large thumb support
             lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
-            if (0 <= lt.find('1')):
-                lt = 1
-            else:
-                lt = 0
+            if lt:
+                if (0 <= lt.find('1')):
+                    lt = 1
+                else:
+                    lt = 0
                 print(f'Large thumb mode "{lt}"')
         else:
             print('PiMowBot is not ready !!!')
@@ -381,10 +440,14 @@ async def conn_ws():
         display_alert()
     
 async def main():
-    # Blink onboard LED during connect
+    # Blink onboard LED slowly during restore-phase
     timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
-    # Check Restore
+    # Check 4 Restore
     restore()
+    # Init Display
+    reset_display()
+    # Show Logo
+    display_image("Logo240.jpg")
     tasks = [conn_ws(), do_joy(), do_img()]
     await a.gather(*tasks)
 
