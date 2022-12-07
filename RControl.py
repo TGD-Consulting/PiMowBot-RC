@@ -11,8 +11,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.1                                                           *
-# *  Datum 16.11.2022                                                        *
+# *  Version 0.1.2                                                           *
+# *  Datum 07.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -25,6 +25,7 @@ import network
 import uasyncio
 import urequests
 import gc
+from os import stat, rename
 from socket import getaddrinfo
 from time import sleep, ticks_ms, ticks_diff #time
 from machine import Pin, Timer, reset
@@ -69,6 +70,43 @@ S = 200          # Status Code
 a = "none"       # alert note
 lt = 0           # normal thumbs
 bta = 1          # Darstellung der Steuerbutton
+
+def log(msg):
+    if _LOG:
+        lfile=open("myLog.txt","a")
+        lfile.write('{'+ str(msg) +',"Zeit":"'+ me.strftime() +'"},'+'\n')
+        lfile.close()
+    else:
+        print(msg)
+        
+def do_rmp():
+    try:
+        stat("main.py")
+        log("Info: benenne main.py in main_.py um")
+        rename("main.py","main_.py")
+        reset()
+        return True
+    except OSError:
+        log("INFO: keine main.py vorhanden")
+        return False
+
+def restore(abtn=3):
+    a = Pin(abtn, Pin.IN, Pin.PULL_UP)
+    b = 0
+    t = 0
+    start=ticks_ms()
+    while ticks_ms()-start <=5000:
+        if a.value()==0:
+            b += 1
+        if a.value()==1 and b > 0:
+            t += 1
+            b = 0
+        if t > 1:
+            if do_rmp():
+                break
+            else:
+                t = 0
+        sleep(0.1)
 
 def motor_stop():
     global D
@@ -543,6 +581,10 @@ def connect():
     return ip
        
 try:
+    # Blink onboard LED slowly during restore 
+    timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
+    # Check Restore
+    restore()
     # Init Display
     reset_display()
     spibus = SPIBus(cs=9, dc=8, sck=10, mosi=11, bl=13)
