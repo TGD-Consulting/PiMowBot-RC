@@ -19,8 +19,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.0                                                           *
-# *  Datum 23.11.2022                                                        *
+# *  Version 0.1.3                                                           *
+# *  Datum 06.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -29,7 +29,9 @@ from micropython import const
 from machine import ADC, Pin, Timer, reset
 import network as net
 import uasyncio as a
+import urequests as r
 import gc
+from os import stat, rename
 from ws import AsyncWebsocketClient            # https://github.com/Vovaman/micropython_async_websocket_client
 from socket import getaddrinfo
 from time import sleep, ticks_ms, ticks_diff
@@ -43,13 +45,15 @@ _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
 _HOST = const('pimowbot.local')  # the name of the PiMowBot
 _TOKEN = const('12345')          # right Token required look@nohup.out
 
-_SOCKET_DELAY_MS = const(5) # ocket delay ms increase on weak wifi-signal
+_LOG = const(False)              # Set to True to enable logging to flash
+_SOCKET_DELAY_MS = const(5)      # Socket delay ms, increase on weak wifi-signal
+_RDELAY = const(10 * _SOCKET_DELAY_MS)
 
-ADCX = ADC(26)   # GPIO26,Pin#1
-ADCY = ADC(27)   # GPIO26,Pin#2
-#ADCZ = ADC(28)   # GPIO26,Pin#4
+ADCX = ADC(26)   # GPIO26, Pin#31
+ADCY = ADC(27)   # GPIO27, Pin#32
+#ADCZ = ADC(28)   # GPIO28,Pin#34
 
-_BTN = const(22)
+_BTN = const(22) # GPIO22, Pin#29
 _NX = const(False)
 _NY = const(True) # negiert Y Werte
 #_NZ = const(False)
@@ -68,7 +72,47 @@ al = "none"       # alert note
 lt = 0            # normal thumbs
 w = False         # WebSocket Client
 g = False         # all information gathered?
-    
+q = []            # empty queue, contains payload send via ws, init stop
+na = False        # bei True ist acknowledge erforderlich
+ec = 0            # error counter
+
+def log(msg):
+    if _LOG:
+        lfile=open("myLog.txt","a")
+        lfile.write('{'+ str(msg) +',"Zeit":"'+ me.strftime() +'"},'+'\n')
+        lfile.close()
+    else:
+        print(msg)
+        
+def do_rmp():
+    try:
+        stat("main.py")
+        log("Info: benenne main.py in main_.py um")
+        rename("main.py","main_.py")
+        reset()
+        return True
+    except OSError:
+        log("INFO: keine main.py vorhanden")
+        return False
+
+def restore(abtn=_BTN):
+    a = Pin(abtn, Pin.IN, Pin.PULL_UP)
+    b = 0
+    t = 0
+    start=ticks_ms()
+    while ticks_ms()-start <=5000:
+        if a.value()==0:
+            b += 1
+        if a.value()==1 and b > 0:
+            t += 1
+            b = 0
+        if t > 1:
+            if do_rmp():
+                break
+            else:
+                t = 0
+        sleep(0.1)
+
 def display_text(text):
     print("display not implemented yet: "+text)  
 
@@ -80,22 +124,24 @@ def get_request(URL, type="HEAD", format="BIN"):
     try:
         jetzt = ticks_ms()
         if (type == "HEAD"):
-            response = urequests.head(URL)
+            response = r.head(URL)
             if (200 == response.status_code):
                 rc = True
         else:
-            gc.collect()     #Run a garbage collection.
-            #print(gc.mem_free())
-            #print(gc.mem_alloc())
-            response = urequests.get(URL)
-            if (format == "BIN"):
-                rc = response.content
+            if (type == "TIME"):
+                response = r.head(URL)
+                rc == log("Timestamp: "+response.headers['Date'])
             else:
-                rc = response.text
+                gc.collect()     #Run a garbage collection.
+                response = r.get(URL)
+                if (format == "BIN"):
+                    rc = response.content
+                else:
+                    rc = response.text
         S = response.status_code
-        print("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
+        log("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
     except:
-            rc = False
+        rc = False
     return rc
 
 def get_ip(host, port=8080):
@@ -111,6 +157,7 @@ def gathered(IP):
         pip = get_ip(_HOST)
         print(f'PiMowBot IP is {pip}')
         sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
+        rc = get_request("http://" + pip, "TIME")
         rc = get_request("http://" + pip + ":8080/favicon.ico")
         if (True == rc):
             print('PiMowBot is ready 4 RC.')
@@ -197,51 +244,77 @@ def get_joy():
     #print("Joy-Z: ",z)
 
 async def do_joy():
-    global angel, force, ws
+    global angel, force, ws, q, ec, na
     oforce = 0
     oangel = 0
     omsg = ""
     lmsg = "[0 0]"
     btn_state = False
     btn = Pin(_BTN, Pin.IN, Pin.PULL_UP)
+    t = ticks_ms()
     while True:
-        # Button auswerten
-        if (btn.value() == 0):
-            btn_state = True
-        # Joystick auswerten
-        get_joy()
-        if force > 0.3:
-            if ((oforce != min (1, force)) or (abs(oangel - angel) >= 5 )):
-                lmsg = "["+str(force)+" "+str(angel)+ "]"
-                oforce = min (1, force)
+        if ticks_diff(ticks_ms(), t) > 290:
+            t = ticks_ms()
+            # Button auswerten
+            if (btn.value() == 0):
+                btn_state = True
+            # Joystick auswerten
+            get_joy()
+            if force > 0.3:
+                if ((oforce != min (1, force)) or (abs(oangel - angel) >= 5 )):
+                    lmsg = "["+str(force)+" "+str(angel)+ "]"
+                    oforce = min (1, force)
+                    oangel = angel
+            else:
+                lmsg = "[0 0]"
+                oforce = 0
                 oangel = angel
-        else:
-            lmsg = "[0 0]"
-            oforce = 0
-            oangel = angel
-        # neue Steuerungsinformatiomen per senden
-        if await ws.open():
+            # neue Steuerungsinformatiomen an queue senden
             if btn_state:
                 lmsg="mower"
                 btn_state=False
             if omsg != lmsg:
-                print ("Sende Daten per WS: ", lmsg)
-                await ws.send(lmsg)
+                #print ("Sende Daten an WS-queue: " + lmsg + " (" +str(ticks_ms())+ ")")
+                if q:
+                    q[0] = lmsg
+                    #if '0' == q[0]:
+                    #    q[0] = lmsg
+                    #    q.append('0')
+                    #else:
+                    #    q[0] = lmsg
+                else:
+                    q.append(lmsg)
                 omsg = lmsg
-            gc.collect()
-        await a.sleep_ms(300)
+        if q and await ws.open(): # send first WS message
+            if len(q) > 5 or ec > 5:
+                await ws.open(False)
+                ec = 0
+            else:
+                cmd = q[0]
+                print ("Sende Daten an WS: " + cmd + " (" +str(ticks_ms())+ ")")
+                await ws.send(cmd)
+                if cmd.find("[") == 0:
+                    na = cmd
+                    ec += 1
+                else:
+                    ec = 0
+                    q.pop(0)
+                gc.collect()
+        await a.sleep_ms(150)
 
 async def do_img():
-    global ws
+    global q, w
+    last = ticks_ms()
     while True:
-        if await ws.open():
-            print ("Fordere neues Bild per WS an")  # alle 2 Sekunden
-            await ws.send("0")
-            gc.collect()
-        await a.sleep(2)   
-    
-async def read_ws():
-    global ws, w, al
+        if w and ticks_diff(ticks_ms(), last) > 1900:
+            if not '0' in q:
+                last = ticks_ms()
+                #print ("Fordere neues Bild per Queue an ("+str(last)+")")
+                q.append("0")
+        await a.sleep(0.5)   
+            
+async def conn_ws():
+    global ws, w, al, q, na, ec
     if hasattr(net, "WLAN"):
         pip = "localhost"
         # Blink onboard LED during connect
@@ -267,23 +340,34 @@ async def read_ws():
                     raise Exception('Handshake error.')
                 else:
                     print ("WS-Handshake erfolgreich")
+                    w = ws._open
+                    print(f'Websocket available {w}')
                 while await ws.open():
                     e = 0
-                    w = True
                     gc.collect()
                     data = await ws.recv()
                     if data is not None:
-                        print (f'Datenlaenge: {len(data)}')
                         if isinstance(data, bytes):
-                            print ('Bytes empfangen')
+                            log (str(len(data)) + ' Bytes empfangen (' +str(ticks_ms()) +')')
                             File = open ("image.jpg","wb")
                             File.write(data)
                             File.close()
                         else:
-                            print ('String empfangen')
-                        # Data Handling demnächst
-                    await a.sleep_ms(50)
+                            log ('String mit '+str(len(data))+' Zeichen empfangen ('+str(ticks_ms())+')')
+                            if data == '':
+                                if q and na:
+                                    print ('Quittiert', q.pop(0))
+                                    na = False
+                                    ec = 0
+                            else:
+                                if q and na == data: # Steuerungsbefehl wird so lange gesendet bis Quittung empfangen
+                                    #q.pop(0)
+                                    print ('Quittiert', q.pop(0))
+                                    na = False
+                                    ec = 0
+                    await a.sleep_ms(_RDELAY)
             except Exception as ex:
+                gc.collect()
                 w = False
                 e += 1
                 print("Exception: {}".format(ex))
@@ -291,13 +375,17 @@ async def read_ws():
                 display_alert()
                 await a.sleep(1)
     else:
-        print('Wrong Raspberry Pi Pico')
-        print('Raspberry Pi Pico W required')
+        log('Wrong Raspberry Pi Pico')
+        log('Raspberry Pi Pico W required')
         al = "  Pico W required  "
         display_alert()
     
-async def main():    
-    tasks = [read_ws(), do_joy(), do_img()]
+async def main():
+    # Blink onboard LED during connect
+    timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
+    # Check Restore
+    restore()
+    tasks = [conn_ws(), do_joy(), do_img()]
     await a.gather(*tasks)
 
 a.run(main())
