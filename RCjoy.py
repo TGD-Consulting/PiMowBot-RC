@@ -19,8 +19,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.4                                                           *
-# *  Datum 07.12.2022                                                        *
+# *  Version 0.1.5                                                           *
+# *  Datum 09.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -36,7 +36,7 @@ from os import stat, rename
 from ws import AsyncWebsocketClient            # https://github.com/Vovaman/micropython_async_websocket_client
 from socket import getaddrinfo
 from time import sleep, ticks_ms, ticks_diff, localtime
-from math import atan2, degrees, sqrt
+from math import atan2, degrees, sqrt, cos, sin, pi
 
 #/*************************
 # *** Globale Parameter ***
@@ -50,7 +50,9 @@ _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
 _HOST = const('pimowbot.local')  # the name of the PiMowBot
 _TOKEN = const('12345')          # right Token required look@nohup.out
 
+_TZ = const(2)                   # Timezone, local difference to GMT
 _LOG = const(False)              # Set to True to enable logging to flash
+_TM = const('2')                 # Thumb-Mode 2
 _SOCKET_DELAY_MS = const(5)      # Socket delay ms, increase on weak wifi-signal
 _RDELAY = const(10 * _SOCKET_DELAY_MS)
 
@@ -103,27 +105,43 @@ g = False         # all information gathered?
 q = []            # empty queue, contains payload send via ws, init stop
 na = False        # bei True ist acknowledge erforderlich
 ec = 0            # error counter
+h = False         # Heading of PiMowBot
+
+def shour(ts=localtime()):
+    return '{:0>2}'.format(ts[3])+":"+'{:0>2}'.format(ts[4])+":"+'{:0>2}'.format(ts[5])
+    
+def sdate(ts=localtime()):
+    return '{:0>2}'.format(ts[2])+"."+'{:0>2}'.format(ts[1])+"."+str(ts[0])
+    
+def exists(file="main.py"):
+    try:
+        stat(file)
+        return True
+    except OSError:
+        return False
 
 def log(msg):
-    if _LOG:
-        lfile=open("myLog.txt","a")
-        ts = localtime()  #(2022, 12, 7, 17, 58, 54, 2, 341)
-        lfile.write(str(ts[2])+'.'+str(ts[1])+'.'+str(ts[0])+' '+str(ts[3])+':'+str(ts[4])+':'++str(ts[5])+' '+ str(msg) +'\n')
-        lfile.close()
-    else:
-        print(msg)
-        
+    if _LOG is not None:
+        if _LOG:
+            if exists("myLog.txt") and 43008 > stat("myLog.txt")[6]:
+                lfile=open("myLog.txt","a")
+            else:
+                lfile=open("myLog.txt","w")    # overwrite if log > 42k
+            lfile.write(sdate()+" "+shour(localtime())+' '+ str(msg) +'\n')
+            lfile.close()
+        else:
+            print(msg)
+
 def do_rmp():
-    try:
-        stat("main.py")
+    if exists():
         log("INFO: benenne main.py in main_.py um")
         rename("main.py","main_.py")
         reset()
         return True
-    except OSError:
+    else:
         log("INFO: keine main.py vorhanden")
         return False
-
+    
 def restore(abtn=_BTN):
     a = Pin(abtn, Pin.IN, Pin.PULL_UP)
     b = 0
@@ -145,18 +163,37 @@ def restore(abtn=_BTN):
 def reset_display():
     # enable display and clear screen
     display.init()
+    display.fill(0) # clear 
     
 def display_text(text):
-    print("display not implemented yet: "+text)  
+    import vga1_8x16 as font
+    display.fill_rect(2, 155, 236, 20, gc9a01.color565(90, 220, 240))
+    display.text(font,text,2,155, gc9a01.color565(132, 132, 132), gc9a01.color565(90, 220, 240))
 
 def display_alert(toggle=True):
-    print("display not implemented yet: "+al)
+    import vga1_8x16 as font
+    display.fill_rect(2, 155, 236, 20, gc9a01.color565(90, 220, 240))
+    if toggle:
+        display.text(font," >> " + al + " << ",2,155, gc9a01.color565(132, 132, 132), gc9a01.color565(90, 220, 240))
+    else:
+        display.text(font," >> " + al + " << ",2,155, gc9a01.color565(250, 132, 132), gc9a01.color565(90, 220, 240))
 
 def display_image(file="image.jpg", x=0, y=0):
     log("Display image: " + file)
     #display.jpg(file, x, y, gc9a01.FAST)
     display.jpg(file, x, y, gc9a01.SLOW)
     gc.collect()     #Run a garbage collection.
+
+def display_uhr(zeit):
+    import vga2_bold_16x32 as font
+    display.text(font,zeit,55,15, gc9a01.color565(132, 132, 132), gc9a01.color565(0, 0, 0))
+
+def display_compass(alpha=0):
+    deg = (alpha * -1) + 270 # Korrektur Kompass-Rose 0=N -> Einheitskreis 90=N
+    rad = (pi * deg) / 180   # Grad nach Bogenmaß
+    x = cos(rad)
+    y = sin(rad)
+    display.fill_rect(117 + int(115 * x), 117 + int(115 * y), 7, 7, gc9a01.color565(250, 132, 132))
 
 def set_rtc(timestamp):
     import ujson
@@ -173,7 +210,7 @@ def set_rtc(timestamp):
     M=zeit.split(":")[1]
     s=zeit.split(":")[2]
     #print(int(y),int(m),int(d),int(h),int(M),int(s))
-    RTC().datetime((int(y), int(m), int(d), int(wd), int(h), int(M), int(s), 0))
+    RTC().datetime((int(y), int(m), int(d), int(wd), int(h)+_TZ, int(M), int(s), 0))
     log("INFO: Zeit erfolgreich gesetzt ("+timestamp+')')
     return True
 
@@ -214,9 +251,10 @@ def gathered(IP):
         timer.deinit() #blinken beenden
         led.off()      #LED ausschalten
         pip = get_ip(_HOST)
-        print(f'PiMowBot IP is {pip}')
+        log(f'PiMowBot IP is {pip}')
         sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
-        rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
+        rc = get_request("http://" + pip, "TIME")
+        #rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
         if (True == rc):
             print('PiMowBot is ready 4 RC.')
             # now check PiCAM
@@ -235,6 +273,9 @@ def gathered(IP):
             al = "PiMowBot not found"
             display_alert()
         g = True
+        # kurze Vorstellung der Steuerung
+        
+        display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
         return pip
     
 async def wlan_connect(SSID: str, pwd: str, attempts: int = 5, delay_in_msec: int = 200) -> net.WLAN:
@@ -250,9 +291,9 @@ async def wlan_connect(SSID: str, pwd: str, attempts: int = 5, delay_in_msec: in
         print('Waiting for connection...')
         await a.sleep_ms(delay_in_msec)
         count += 1
-
+        
     if wlan.isconnected():
-        print("Connected on {}".format(wlan.ifconfig()[0]))
+        log("Connected on {}".format(wlan.ifconfig()[0]))
     else:
         al = "WiFi connect failed!!"
         display_alert()
@@ -362,9 +403,28 @@ async def do_joy():
         await a.sleep_ms(150)
 
 async def do_img():
-    global q, w
+    global q, w, h
     last = ticks_ms()
+    ts = 0
     while True:
+        ts += 1
+        # Display Alerts
+        if (ts == 2):
+            if (a != "none"):
+                display_alert()
+            if w:
+                display_uhr(shour(localtime()))
+                if h:
+                    display_compass(h)
+                if not '1' in q: # get Telemetrie
+                    q.append("1")
+        if ts >= 4:
+            ts = 0
+            if w:
+                display_uhr(shour(localtime()))
+            if (a != "none"):
+                   display_alert(False)
+        # get Image           
         if w and ticks_diff(ticks_ms(), last) > 1900:
             if not '0' in q:
                 last = ticks_ms()
@@ -373,7 +433,7 @@ async def do_img():
         await a.sleep(0.5)   
             
 async def conn_ws():
-    global ws, w, al, q, na, ec
+    global ws, w, al, q, na, ec, h
     if hasattr(net, "WLAN"):
         pip = "localhost"
         # Blink onboard LED during connect
@@ -393,7 +453,7 @@ async def conn_ws():
                 #print(f'PIP {pip}')
             try:
                 # connect to PiMowBot socket server with Token
-                if not await ws.handshake("ws://" + pip + ":8008/cgi-bin/control.html?token=" + _TOKEN + "&thumb=mode"):
+                if not await ws.handshake("ws://" + pip + ":8008/cgi-bin/control.html?token=" + _TOKEN + "&thumb=mode" + _TM):
                     w = ws._open
                     print(f'Websocket available {w}')
                     raise Exception('Handshake error.')
@@ -406,24 +466,26 @@ async def conn_ws():
                     gc.collect()
                     data = await ws.recv()
                     if data is not None:
-                        if isinstance(data, bytes):
-                            log (str(len(data)) + ' Bytes empfangen (' +str(ticks_ms()) +')')
-                            File = open ("image.jpg","wb")
-                            File.write(data)
-                            File.close()
-                        else:
+                        if isinstance(data, str):
                             log ('String mit '+str(len(data))+' Zeichen empfangen ('+str(ticks_ms())+')')
-                            if data == '':
-                                if q and na:
-                                    print ('Quittiert', q.pop(0))
-                                    na = False
-                                    ec = 0
-                            else:
+                            if len(data) <= 13: # Steuerungsbefehl
                                 if q and na == data: # Steuerungsbefehl wird so lange gesendet bis Quittung empfangen
                                     #q.pop(0)
                                     print ('Quittiert', q.pop(0))
                                     na = False
                                     ec = 0
+                                else:
+                                    if data == '' and q and na:
+                                        print ('Quittiert', q.pop(0))
+                                        na = False
+                                        ec = 0
+                            else: # Telemetrie empfangen
+                                h = float(data.split(";")[1][:-1])
+                        else:
+                            log (str(len(data)) + ' Bytes empfangen (' +str(ticks_ms()) +')')
+                            File = open ("image.jpg","wb")
+                            File.write(data)
+                            File.close()
                     await a.sleep_ms(_RDELAY)
             except Exception as ex:
                 gc.collect()
@@ -440,12 +502,14 @@ async def conn_ws():
         display_alert()
     
 async def main():
+    log("INFO: >> RControl powered up <<")
     # Blink onboard LED slowly during restore-phase
     timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
-    # Check 4 Restore
-    restore()
     # Init Display
     reset_display()
+    # Check 4 Restore
+    log("Waiting 5s 4 doubleclick 2 restore")
+    restore()
     # Show Logo
     display_image("Logo240.jpg")
     tasks = [conn_ws(), do_joy(), do_img()]
