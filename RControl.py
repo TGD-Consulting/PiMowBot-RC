@@ -43,6 +43,9 @@ _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
 _HOST = const('pimowbot.local')  # the name of the PiMowBot 
 _TOKEN = const('12345')          # right Token required look@nohup.out
 
+_TZ = const(2)                   # Timezone, local difference to GMT
+_LOG = const(False)              # Set to True to enable logging to flash, set to None to disable
+
 # dormant mode 
 _DP1 = const(15)    # btna
 _DP2 = const(17)    # btnb
