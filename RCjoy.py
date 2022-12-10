@@ -51,7 +51,7 @@ _HOST = const('pimowbot.local')  # the name of the PiMowBot
 _TOKEN = const('12345')          # right Token required look@nohup.out
 
 _TZ = const(2)                   # Timezone, local difference to GMT
-_LOG = const(False)              # Set to True to enable logging to flash
+_LOG = const(False)              # Set to True to enable logging to flash, set to None to disable
 _TM = const('2')                 # Thumb-Mode 2
 _SOCKET_DELAY_MS = const(5)      # Socket delay ms, increase on weak wifi-signal
 _RDELAY = const(10 * _SOCKET_DELAY_MS)
