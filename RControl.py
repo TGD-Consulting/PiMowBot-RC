@@ -617,6 +617,8 @@ def connect():
     return ip
        
 try:
+    gc.enable()
+    gc.collect()
     log("INFO: >> RControl powered up <<")
     # Blink onboard LED slowly during restore 
     timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
@@ -675,7 +677,7 @@ try:
     display_dir()            # kurze Vorstellung der Steuerung
     if (lt == 1):
         bta = 0              # Steuerbutton nicht darstellen
-    gc.enable()
+    gc.collect()
     display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
     uasyncio.run(coop_tasks())
 except KeyboardInterrupt:
