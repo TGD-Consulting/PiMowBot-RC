@@ -27,7 +27,7 @@ import urequests
 import gc
 from os import stat, rename
 from socket import getaddrinfo
-from time import sleep, ticks_ms, ticks_diff #time
+from time import sleep, ticks_ms, ticks_diff, localtime
 from machine import Pin, Timer, RTC, reset
 #import lowpower   # https://github.com/tomjorquera/pico-micropython-lowpower-workaround
 
