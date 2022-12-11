@@ -313,10 +313,10 @@ def gathered(IP):
         sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
         rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
         if (True == rc):
-            print('PiMowBot is ready 4 RC.')
+            log('PiMowBot is ready 4 RC.')
             # now check PiCAM
             pc = get_request("http://" + pip + ":8080/image.jpg")
-            print('PiMowBot-PiCAM is ready.')
+            log('PiMowBot-PiCAM is ready.')
             # now check large thumb support
             lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
             if lt:
@@ -324,9 +324,9 @@ def gathered(IP):
                     lt = 1
                 else:
                     lt = 0
-                print(f'Large thumb mode "{lt}"')
+                log(f'Large thumb mode "{lt}"')
         else:
-            print('PiMowBot is not ready !!!')
+            log('PiMowBot is not ready !!!')
             al = "PiMowBot not found"
             display_alert()
         g = True
