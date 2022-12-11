@@ -19,8 +19,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.5                                                           *
-# *  Datum 09.12.2022                                                        *
+# *  Version 0.1.6                                                           *
+# *  Datum 11.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -51,7 +51,7 @@ _HOST = const('pimowbot.local')  # the name of the PiMowBot
 _TOKEN = const('12345')          # right Token required look@nohup.out
 
 _TZ = const(2)                   # Timezone, local difference to GMT
-_LOG = const(False)              # Set to True to enable logging to flash, set to None to disable
+_LOG = const(False)              # Set to True to enable logging to flash, Set to None to disable
 _TM = const('2')                 # Thumb-Mode 2
 _SOCKET_DELAY_MS = const(5)      # Socket delay ms, increase on weak wifi-signal
 _RDELAY = const(10 * _SOCKET_DELAY_MS)
@@ -195,6 +195,64 @@ def display_compass(alpha=0):
     y = sin(rad)
     display.fill_rect(117 + int(115 * x), 117 + int(115 * y), 7, 7, gc9a01.color565(250, 132, 132))
 
+def display_up(set=True):
+    import vga2_8x8 as font
+    if set:
+        display.text(font,30,96,113, gc9a01.color565(250, 132, 132), gc9a01.color565(80, 80, 80))
+    else:
+        display.text(font,30,96,113, gc9a01.color565(80, 80, 80), gc9a01.color565(80, 80, 80))
+        
+def display_down(set=True):
+    import vga2_8x8 as font
+    if set:
+        display.text(font,31,96,142, gc9a01.color565(250, 132, 132), gc9a01.color565(80, 80, 80))
+    else:
+        display.text(font,31,96,142, gc9a01.color565(80, 80, 80), gc9a01.color565(80, 80, 80))
+
+def display_left(set=True):
+    import vga2_8x8 as font
+    if set:
+        display.text(font,17,82,127, gc9a01.color565(250, 132, 132), gc9a01.color565(80, 80, 80))
+    else:
+        display.text(font,17,82,127, gc9a01.color565(80, 80, 80), gc9a01.color565(80, 80, 80))
+
+def display_right(set=True):
+    import vga2_8x8 as font
+    if set:
+        display.text(font,16,111,127, gc9a01.color565(250, 132, 132), gc9a01.color565(80, 80, 80))
+    else:
+        display.text(font,16,111,127, gc9a01.color565(80, 80, 80), gc9a01.color565(80, 80, 80))
+
+def display_center(set=True):
+    import vga2_8x8 as font
+    if set:
+        display.text(font,219,96,127, gc9a01.color565(250, 132, 132), gc9a01.color565(132, 132, 132))
+    else:
+        display.text(font,219,96,127, gc9a01.color565(132, 132, 132), gc9a01.color565(132, 132, 132))
+
+def display_dir(odir="Init"):
+    if (odir == "Init"):
+        display_up()
+        sleep(0.3)
+        display_right()
+        sleep(0.3)
+        display_down()
+        sleep(0.3)
+        display_left()
+        sleep(0.3)
+        display_center()
+        sleep(0.3)
+        display_up(0)
+        sleep(0.3)
+        display_right(0)
+        sleep(0.3)
+        display_down(0)
+        sleep(0.3)
+        display_left(0)
+        sleep(0.3)
+        display_center(0)
+        sleep(0.3)
+
 def set_rtc(timestamp):
     import ujson
     i=ujson.loads('{"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}')
@@ -255,10 +313,10 @@ def gathered(IP):
         sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
         rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
         if (True == rc):
-            log('PiMowBot is ready 4 RC.')
+            print('PiMowBot is ready 4 RC.')
             # now check PiCAM
             pc = get_request("http://" + pip + ":8080/image.jpg")
-            log('PiMowBot-PiCAM is ready.')
+            print('PiMowBot-PiCAM is ready.')
             # now check large thumb support
             lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
             if lt:
@@ -266,15 +324,16 @@ def gathered(IP):
                     lt = 1
                 else:
                     lt = 0
-                log(f'Large thumb mode "{lt}"')
+                print(f'Large thumb mode "{lt}"')
         else:
             print('PiMowBot is not ready !!!')
             al = "PiMowBot not found"
             display_alert()
         g = True
         # kurze Vorstellung der Steuerung
-        
+        display_dir()       
         display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
+        sleep(1)
         return pip
     
 async def wlan_connect(SSID: str, pwd: str, attempts: int = 5, delay_in_msec: int = 200) -> net.WLAN:
