@@ -11,8 +11,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.3                                                           *
-# *  Datum 10.12.2022                                                        *
+# *  Version 0.1.4                                                           *
+# *  Datum 12.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -27,7 +27,7 @@ import urequests
 import gc
 from os import stat, rename
 from socket import getaddrinfo
-from time import sleep, ticks_ms, ticks_diff, localtime
+from time import sleep, ticks_ms, ticks_diff
 from machine import Pin, Timer, RTC, reset
 #import lowpower   # https://github.com/tomjorquera/pico-micropython-lowpower-workaround
 
@@ -42,9 +42,6 @@ _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
 # PiMowBot hostname
 _HOST = const('pimowbot.local')  # the name of the PiMowBot 
 _TOKEN = const('12345')          # right Token required look@nohup.out
-
-_TZ = const(2)                   # Timezone, local difference to GMT
-_LOG = const(False)              # Set to True to enable logging to flash, set to None to disable
 
 # dormant mode 
 _DP1 = const(15)    # btna
@@ -80,28 +77,15 @@ def exists(file="main.py"):
         return True
     except OSError:
         return False
-
-def log(msg):
-    if _LOG is not None:
-        if _LOG:
-            if exists("myLog.txt") and 43008 > stat("myLog.txt")[6]:
-                lfile=open("myLog.txt","a")
-            else:
-                lfile=open("myLog.txt","w")    # overwrite if log > 42k
-            ts=localtime()
-            lfile.write('{:0>2}'.format(ts[2])+"."+'{:0>2}'.format(ts[1])+"."+str(ts[0])+" "+'{:0>2}'.format(ts[3])+":"+'{:0>2}'.format(ts[4])+":"+'{:0>2}'.format(ts[5])+' '+ str(msg) +'\n')
-            lfile.close()
-        else:
-            print(msg)
         
 def do_rmp():
     if exists():
-        log("INFO: benenne main.py in main_.py um")
+        print("INFO: benenne main.py in main_.py um")
         rename("main.py","main_.py")
         reset()
         return True
     else:
-        log("INFO: keine main.py vorhanden")
+        print("INFO: keine main.py vorhanden")
         return False
 
 def restore(abtn=3):
@@ -224,25 +208,6 @@ def do_notaus():                     #NotAus Wird bei btn und Steuerkreuz aktivi
     print ("NotAus")
     get_request("http://" + pip + ":8080/cgi-bin/control.html?Token=" + _TOKEN + "&motor=%E2%8A%97")
 
-def set_rtc(timestamp):
-    import ujson
-    i=ujson.loads('{"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06","Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}')
-    w=ujson.loads('{"Mon,":"0","Tue,":"1","Wed,":"2","Thu,":"3","Fri,":"4","Sat,":"5","Sun,":"6"}')
-    ts=timestamp # "Wed, 07 Feb 2022 10:06:56 GMT"
-    el=ts.split(" ")
-    wd=w[el[0]]
-    d=el[1]
-    m=i[el[2]]
-    y=el[3]
-    zeit=el[4]
-    h=zeit.split(":")[0]
-    M=zeit.split(":")[1]
-    s=zeit.split(":")[2]
-    #print(int(y),int(m),int(d),int(h),int(M),int(s))
-    RTC().datetime((int(y), int(m), int(d), int(wd), int(h)+_TZ, int(M), int(s), 0))
-    log("INFO: Zeit erfolgreich gesetzt ("+timestamp+')')
-    return True
-
 def get_request(URL, type="HEAD", format="BIN"):
     rc = False
     try:
@@ -252,19 +217,14 @@ def get_request(URL, type="HEAD", format="BIN"):
             if (200 == response.status_code):
                 rc = True
         else:
-            if (type == "TIME"):
-                response = urequests.head(URL)
-                if 200 == response.status_code and set_rtc(response.headers['Date']):
-                    rc = True
+            gc.collect()     #Run a garbage collection.
+            response = urequests.get(URL)
+            if (format == "BIN"):
+                rc = response.content
             else:
-                gc.collect()     #Run a garbage collection.
-                response = urequests.get(URL)
-                if (format == "BIN"):
-                    rc = response.content
-                else:
-                    rc = response.text
+                rc = response.text
         S = response.status_code
-        log("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
+        print("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
     except:
             rc = False
     return rc
@@ -619,11 +579,10 @@ def connect():
 try:
     gc.enable()
     gc.collect()
-    log("INFO: >> RControl powered up <<")
     # Blink onboard LED slowly during restore 
     timer.init(freq=2, mode=Timer.PERIODIC, callback=blink)
     # Check 4 Restore
-    log("Waiting 5s 4 doubleclick 2 restore")
+    print("Waiting 5s 4 doubleclick 2 restore")
     restore()
     # Init Display
     reset_display()
@@ -643,28 +602,28 @@ try:
             timer.deinit() #blinken beenden
             led.off()      #LED ausschalten
             pip = get_ip(_HOST)
-            log(f'PiMowBot IP is {pip}')
+            print(f'PiMowBot IP is {pip}')
             sleep(3)  # zum Lesen der IP-Addr der RC auf dem Display
-            rc = get_request("http://" + pip + ":8080/favicon.ico", "TIME")
+            rc = get_request("http://" + pip + ":8080/favicon.ico")
             if (True == rc):
-                log('PiMowBot is ready 4 RC.')
+                print('PiMowBot is ready 4 RC.')
                 # now check PiCAM
                 pc = get_request("http://" + pip + ":8080/image.jpg")
-                log('PiMowBot-PiCAM is ready.')
+                print('PiMowBot-PiCAM is ready.')
                 # now check large thumb support
                 lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
                 if (0 <= lt.find('1')):
                    lt = 1
                 else:
                    lt = 0
-                log(f'Large thumb mode "{lt}"')
+                print(f'Large thumb mode "{lt}"')
             else:
-                log('PiMowBot is not ready !!!')
+                print('PiMowBot is not ready !!!')
                 if ip:
                      a = "PiMowBot not found"
                      display_alert()
             ws_avail = get_request("http://" + pip + ":8008/echo")
-            log(f'Websocket available {ws_avail}')
+            print(f'Websocket available {ws_avail}')
         else:
             pip = "localhost"
     else:
@@ -677,7 +636,6 @@ try:
     display_dir()            # kurze Vorstellung der Steuerung
     if (lt == 1):
         bta = 0              # Steuerbutton nicht darstellen
-    gc.collect()
     display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
     uasyncio.run(coop_tasks())
 except KeyboardInterrupt:
