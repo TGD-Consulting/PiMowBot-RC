@@ -22,8 +22,8 @@ from pimoroni_bus import SPIBus
 from picographics import PicoGraphics, DISPLAY_PICO_DISPLAY, PEN_RGB565
 import jpegdec
 import network as net
-import uasyncio
-import urequests
+import uasyncio as a
+import urequests as r
 import gc
 from os import stat, rename
 from socket import getaddrinfo
@@ -67,7 +67,7 @@ def blink(timer):
 
 D = "unknown"    # current direction
 S = 200          # Status Code
-a = "none"       # alert note
+al = "none"       # alert note
 lt = 0           # normal thumbs
 bta = 1          # Darstellung der Steuerbutton
 
@@ -213,12 +213,12 @@ def get_request(URL, type="HEAD", format="BIN"):
     try:
         jetzt = ticks_ms()
         if (type == "HEAD"):
-            response = urequests.head(URL)
+            response = r.head(URL)
             if (200 == response.status_code):
                 rc = True
         else:
             gc.collect()     #Run a garbage collection.
-            response = urequests.get(URL)
+            response = r.get(URL)
             if (format == "BIN"):
                 rc = response.content
             else:
@@ -412,7 +412,7 @@ def display_alert(toggle=True):
     else:
         display.set_pen(RED)
     display.set_font('bitmap8')
-    display.text(" >> " + a + " << ", 2, 105, 236, 2)
+    display.text(" >> " + al + " << ", 2, 105, 236, 2)
     display.update()
     
 def display_image(file='image.jpg', x=0, y=0):    
@@ -428,7 +428,7 @@ def display_image(file='image.jpg', x=0, y=0):
     display.update()
 
 async def refresh_display():
-    global a
+    global al
     ts = 0
     n = 0
     i = 0
@@ -436,15 +436,15 @@ async def refresh_display():
        ts += 1
        # Load current PiCAM image and display
        if (n == 1) and (ts == 2):
-           if (a != "none"):
+           if (al != "none"):
                display_alert()
        if ts >= 4:
            ts = 0
            image = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=image.jpg", "Get")
            if S != 200:
-               a = "PiMowBot returned " + str(S) + "!"
+               al = "PiMowBot returned " + str(S) + "!"
            if (image == False) or (S != 200):
-               if (a != "none"):
+               if (al != "none"):
                    display_alert(False)
                n = 1
                i += 1
@@ -462,7 +462,7 @@ async def refresh_display():
                n = 0
                i = 0
 
-       await uasyncio.sleep(0.5)
+       await a.sleep(0.5)
 
 async def do_buttons():
     btnA_rel = True
@@ -544,16 +544,16 @@ async def do_buttons():
         else:
             btnB_rel = True
         
-        await uasyncio.sleep(0.25)
+        await a.sleep(0.25)
 
 async def coop_tasks():
-    uasyncio.create_task(do_buttons())
-    uasyncio.create_task(refresh_display())
+    a.create_task(do_buttons())
+    a.create_task(refresh_display())
     while True:
-          await uasyncio.sleep(10)
+          await a.sleep(10)
 
 def connect():
-    global a
+    global al
     ip = False
     #Connect to WLAN
     wlan = net.WLAN(net.STA_IF)
@@ -569,7 +569,7 @@ def connect():
         sleep(1)
     # Handle connection error
     if wlan.status() != 3:
-        a = "WiFi connect failed!!"
+        al = "WiFi connect failed!!"
         display_alert()
     else:  # wlan.isconnected() == True
         ip = wlan.ifconfig()[0]
@@ -592,7 +592,7 @@ try:
     # Show Logo
     display_image("Logo.jpg")
     pc = False
-    if hasattr(network, "WLAN"):
+    if hasattr(net, "WLAN"):
         # Blink onboard LED during connect
         timer.init(freq=4, mode=Timer.PERIODIC, callback=blink)
         # the board has WLAN capabilities
@@ -629,15 +629,15 @@ try:
     else:
         print('Wrong Raspberry Pi Pico')
         print('Raspberry Pi Pico W required')
-        a = "  Pico W required  "
+        al = "  Pico W required  "
         display_alert()
-    if (pc == True) and (lt == 0) and (a == "none"):
+    if (pc == True) and (lt == 0) and (al == "none"):
         display_cinema()     # PiCAM Kinovorstellung ist eröffnet
     display_dir()            # kurze Vorstellung der Steuerung
     if (lt == 1):
         bta = 0              # Steuerbutton nicht darstellen
     display_text(" ||||||||||||||||||||||||||||||||||||||||||||||||||||||| ")
-    uasyncio.run(coop_tasks())
+    a.run(coop_tasks())
 except KeyboardInterrupt:
     print('Finished!!!')
 #EOF
