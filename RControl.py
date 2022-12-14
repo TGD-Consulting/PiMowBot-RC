@@ -21,7 +21,7 @@ from micropython import const
 from pimoroni_bus import SPIBus
 from picographics import PicoGraphics, DISPLAY_PICO_DISPLAY, PEN_RGB565
 import jpegdec
-import network
+import network as net
 import uasyncio
 import urequests
 import gc
@@ -556,7 +556,7 @@ def connect():
     global a
     ip = False
     #Connect to WLAN
-    wlan = network.WLAN(network.STA_IF)
+    wlan = net.WLAN(net.STA_IF)
     wlan.active(True)
     wlan.connect(_SSID, _PASSWORD)
     # Wait for connect or fail
