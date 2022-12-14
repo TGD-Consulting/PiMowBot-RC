@@ -415,7 +415,8 @@ def display_alert(toggle=True):
     display.text(" >> " + al + " << ", 2, 105, 236, 2)
     display.update()
     
-def display_image(file='image.jpg', x=0, y=0):    
+def display_image(file='image.jpg', x=0, y=0):
+    gc.collect()
     # Create a new JPEG decoder for our PicoGraphics
     j = jpegdec.JPEG(display)
      
