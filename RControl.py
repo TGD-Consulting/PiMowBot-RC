@@ -11,8 +11,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.4                                                           *
-# *  Datum 12.12.2022                                                        *
+# *  Version 0.1.5                                                           *
+# *  Datum 14.12.2022                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -620,7 +620,7 @@ try:
             else:
                 print('PiMowBot is not ready !!!')
                 if ip:
-                     a = "PiMowBot not found"
+                     al = "PiMowBot not found"
                      display_alert()
             ws_avail = get_request("http://" + pip + ":8008/echo")
             print(f'Websocket available {ws_avail}')
