@@ -321,7 +321,7 @@ def gathered(IP):
             lt = get_request("http://" + pip + ":8080/cgi-bin/xcom.html?Token=" + _TOKEN + "&Thumb=mode", "Get", "TXT")
             if lt:
                 if (0 <= lt.find('1')):
-                    lt = 1
+                    lt = 1     # Convert is installed @ PiMowBot
                 else:
                     lt = 0
                 log(f'Large thumb mode "{lt}"')
@@ -468,7 +468,7 @@ async def do_img():
         ts += 1
         # Display Alerts
         if (ts == 2):
-            if (a != "none"):
+            if (al != "none"):
                 display_alert()
             if w:
                 display_uhr(shour(localtime()))
@@ -480,7 +480,7 @@ async def do_img():
             ts = 0
             if w:
                 display_uhr(shour(localtime()))
-            if (a != "none"):
+            if (al != "none"):
                    display_alert(False)
         # get Image           
         if w and ticks_diff(ticks_ms(), last) > 1900:
@@ -544,6 +544,7 @@ async def conn_ws():
                             File = open ("image.jpg","wb")
                             File.write(data)
                             File.close()
+                            display_image()   # Empfanges Thumb-Bild auf dem Display darstellen
                     await a.sleep_ms(_RDELAY)
             except Exception as ex:
                 gc.collect()
