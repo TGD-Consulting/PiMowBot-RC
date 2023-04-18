@@ -11,8 +11,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.5                                                           *
-# *  Datum 14.12.2022                                                        *
+# *  Version 0.1.6                                                           *
+# *  Datum 18.04.2023                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -38,6 +38,8 @@ from machine import Pin, Timer, RTC, reset
 # WiFi Credentials
 _SSID = const('Your_SSID_Name')         # change to your WiFi SSID
 _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
+#import rp2                             # uncomment and set your WiFi-Country
+#rp2.country('DE')                      # here in case of channel problems
 
 # PiMowBot hostname
 _HOST = const('pimowbot.local')  # the name of the PiMowBot 
@@ -224,9 +226,10 @@ def get_request(URL, type="HEAD", format="BIN"):
             else:
                 rc = response.text
         S = response.status_code
+        response.close()
         print("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
     except:
-            rc = False
+        rc = False
     return rc
 
 def get_ip(host, port=8080):
@@ -559,6 +562,7 @@ def connect():
     #Connect to WLAN
     wlan = net.WLAN(net.STA_IF)
     wlan.active(True)
+    wlan.config(pm = 0xa11140)    # disable Power-saving mode
     wlan.connect(_SSID, _PASSWORD)
     # Wait for connect or fail
     max_wait = 12
