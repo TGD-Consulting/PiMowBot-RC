@@ -19,8 +19,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.6                                                           *
-# *  Datum 11.12.2022                                                        *
+# *  Version 0.1.7                                                           *
+# *  Datum 18.04.2023                                                        *
 # *                                                                          *
 # *  (C) 2022 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -45,6 +45,8 @@ from math import atan2, degrees, sqrt, cos, sin, pi
 # WiFi Credentials
 _SSID = const('Your_SSID_Name')         # change to your WiFi SSID
 _PASSWORD = const('Your_WiFi_Password') # change to your passphrase
+#import rp2                             # uncomment and set your WiFi-Country
+#rp2.country('DE')                      # here in case of channel problems
 
 # PiMowBot hostname
 _HOST = const('pimowbot.local')  # the name of the PiMowBot
@@ -293,6 +295,7 @@ def get_request(URL, type="HEAD", format="BIN"):
                 else:
                     rc = response.text
         S = response.status_code
+        response.close()
         log("Delay-" + type + ": " + str(ticks_diff(ticks_ms(), jetzt)) + "ms, Status: " + str(S))
     except:
         rc = False
@@ -341,6 +344,7 @@ async def wlan_connect(SSID: str, pwd: str, attempts: int = 5, delay_in_msec: in
     #Connect to WLAN
     wlan = net.WLAN(net.STA_IF)
     wlan.active(1)
+    wlan.config(pm = 0xa11140)    # disable Power-saving mode
     count = 1
     # Wait for connect or fail
     while not wlan.isconnected() and count <= attempts:
