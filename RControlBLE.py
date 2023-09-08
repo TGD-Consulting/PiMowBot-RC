@@ -12,8 +12,8 @@
 # *                                                                          *
 # *  Homepage: http://pimowbot.TGD-Consulting.de                             *
 # *                                                                          *
-# *  Version 0.1.0                                                           *
-# *  Datum 31.08.2023                                                        *
+# *  Version 0.1.1                                                           *
+# *  Datum 8.09.2023                                                        *
 # *                                                                          *
 # *  (C) 2023 TGD-Consulting , Author: Dirk Weyand                           *
 # ****************************************************************************/
@@ -25,7 +25,7 @@ import jpegdec
 import gc
 import uasyncio as asyncio
 from micropython import const
-from machine import ADC, Pin, reset
+from machine import ADC, Pin
 from time import sleep, ticks_ms, ticks_diff
 from math import atan2, degrees, sqrt, cos, sin, pi
 
@@ -112,13 +112,21 @@ def advertising_payload(limited_disc=False, br_edr=False, name=None, services=No
 
 _IRQ_CENTRAL_CONNECT = const(1)
 _IRQ_CENTRAL_DISCONNECT = const(2)
+_IRQ_GATTS_WRITE = const(3)
 _IRQ_GATTS_INDICATE_DONE = const(20)
 
 _FLAG_READ = const(0x0002)
+_FLAG_WRITE_NO_RESPONSE = const(0x0004)
+_FLAG_WRITE = const(0x0008)
 _FLAG_NOTIFY = const(0x0010)
 _FLAG_INDICATE = const(0x0020)
 
 #BLE-Device Services and Characteristics
+_RC_TELE_UUID = bluetooth.UUID(0x1801) # Generic Attribute
+
+_TELE_CHAR = (bluetooth.UUID(0x2700), _FLAG_WRITE | _FLAG_WRITE_NO_RESPONSE, )   # unitless
+
+_RC_TELE_SERVICE = (_RC_TELE_UUID, (_TELE_CHAR,),)
 
 _RC_GENERIC_UUID = bluetooth.UUID(0x1849)  # Generic Media Control
 
@@ -151,8 +159,9 @@ class BLERemoteControl:
         self._ble = ble
         self._ble.active(True)
         self._ble.irq(self._irq)
-        ((self._handle,), (i1, i2, i3, i4, i5,),) = self._ble.gatts_register_services((_RC_NAV_SERVICE, _DEV_INFO_SERVICE,))
+        ((self._handle,), (self._handle_tele,), (i1, i2, i3, i4, i5,),) = self._ble.gatts_register_services((_RC_NAV_SERVICE, _RC_TELE_SERVICE, _DEV_INFO_SERVICE,))
         self._connections = set()
+        self._write_callback = None
         self._ble.gatts_write(i1, "PiMowBot.tgd-consulting.DE")
         self._ble.gatts_write(i2, "1.0")
         self._ble.gatts_write(i3, uid())
@@ -182,10 +191,18 @@ class BLERemoteControl:
             self._advertise()
         elif event == _IRQ_GATTS_INDICATE_DONE:
             conn_handle, value_handle, status = data
+        elif event == _IRQ_GATTS_WRITE:
+            conn_handle, value_handle = data
+            value = self._ble.gatts_read(value_handle)
+            if value_handle == self._handle_tele and self._write_callback:
+                self._write_callback(value)
 
     def is_connected(self):
         return len(self._connections) > 0
-
+    
+    def on_write(self, callback):
+        self._write_callback = callback
+    
     def set_navigation(self, data, notify=False, indicate=False):
         # Data is string with navigation info.
         # Write the local value, ready for a central to read.
@@ -198,7 +215,7 @@ class BLERemoteControl:
                 if indicate:
                     # Indicate connected centrals.
                     self._ble.gatts_indicate(conn_handle, self._handle)
-
+        
     def _advertise(self, interval_us=_ADV_INTERVAL_MS):
         print("Starting advertising")
         self._ble.gap_advertise(interval_us, adv_data=self._payload)
@@ -239,8 +256,29 @@ def display_image(file='image.jpg', x=0, y=0):
     # Display the result
     display.update()
 
+def display_Heading(val="10.8"):
+    if _WD:
+        print("Heading: "+val)
+    else:
+        pass #TBD
+    
+def display_Battery(val="10.8"):
+    display.set_pen(BACK)
+    display.rectangle(33, 67, 39, 16) # Battery
+    display.rectangle(28, 71, 3, 8)   # +Knob
+    display.set_pen(DGREY)
+    display.pixel(28,71)  # round corners knob
+    display.pixel(28,78)
+    display.pixel(33,67)  # round corners battery
+    display.pixel(33,82)
+    display.pixel(71,67)
+    display.pixel(71,82)
+    display.set_pen(GREY)
+    display.set_font('bitmap8')
+    display.text(val, 36, 68, scale=2) # show text
+    display.update()
+    
 def display_BTlogo():
-    DGREY = display.create_pen(80, 80, 80)
     display.set_pen(DGREY)
     x = 124
     y = 22
@@ -254,7 +292,6 @@ def display_BTlogo():
     x = 125
     y = 30
     display.triangle(x + 8, y, x, y - 5, x, y + 5) #right
-    BACK = display.create_pen(90, 220, 240)
     display.set_pen(BACK)
     x = 125
     y = 22
@@ -271,9 +308,6 @@ def display_BTlogo():
     display.update()
     
 def display_text(text, dir = 0):
-    GREY = display.create_pen(132, 132, 132)
-    RED = display.create_pen(250, 132, 132)
-    BACK = display.create_pen(90, 220, 240)
     display.set_pen(BACK)
     if dir:
         display.rectangle(133, 5, 102, 17)
@@ -288,9 +322,6 @@ def display_text(text, dir = 0):
     display.update()
 
 def display_alert(toggle=True):
-    GREY = display.create_pen(132, 132, 132)
-    RED = display.create_pen(250, 132, 132)
-    BACK = display.create_pen(90, 220, 240)
     display.set_pen(BACK)
     display.rectangle(2, 105, 236, 20) # remove lawn on display
     if toggle:
@@ -304,10 +335,8 @@ def display_alert(toggle=True):
 def display_up(set=True):
     if _BTA:
         if set:
-            RED = display.create_pen(250, 132, 132)
             display.set_pen(RED)
         else:
-            DGREY = display.create_pen(80, 80, 80)
             display.set_pen(DGREY)
         display.triangle(_OX, _OY - 18, _OX - 10, _OY - 10, _OX + 10, _OY - 10) #up
         display.update()
@@ -315,10 +344,8 @@ def display_up(set=True):
 def display_down(set=True):
     if _BTA:
         if set:
-            RED = display.create_pen(250, 132, 132)
             display.set_pen(RED)
         else:
-            DGREY = display.create_pen(80, 80, 80)
             display.set_pen(DGREY)
         display.triangle(_OX, _OY + 18, _OX + 10, _OY + 10, _OX - 10, _OY + 10) #down
         display.update()
@@ -326,10 +353,8 @@ def display_down(set=True):
 def display_left(set=True):
     if _BTA:
         if set:
-            RED = display.create_pen(250, 132, 132)
             display.set_pen(RED)
         else:
-            DGREY = display.create_pen(80, 80, 80)
             display.set_pen(DGREY)
         display.triangle(_OX - 18, _OY, _OX - 10, _OY - 10, _OX - 10, _OY + 10) #left
         display.update()        
@@ -337,10 +362,8 @@ def display_left(set=True):
 def display_right(set=True):
     if _BTA:
         if set:
-            RED = display.create_pen(250, 132, 132)
             display.set_pen(RED)
         else:
-            DGREY = display.create_pen(80, 80, 80)
             display.set_pen(DGREY)
         display.triangle(_OX + 18, _OY, _OX + 10, _OY - 10, _OX + 10, _OY + 10) #right
         display.update()
@@ -348,10 +371,8 @@ def display_right(set=True):
 def display_center(set=True):
     if _BTA:
         if set:
-            RED = display.create_pen(250, 132, 132)
             display.set_pen(RED)
         else:
-            GREY = display.create_pen(132, 132, 132)
             display.set_pen(GREY)
         display.circle(_OX, _OY, 5)      # Center btn
         display.update()
@@ -404,12 +425,17 @@ if _WD:
     reset_display()
     spibus = SPIBus(cs=9, dc=8, sck=10, mosi=11, bl=13)
     display = PicoGraphics(display=DISPLAY_PICO_DISPLAY, bus=spibus, pen_type= PEN_RGB565, rotate=0)
+    BACK = display.create_pen(90, 220, 240)
+    DGREY = display.create_pen(80, 80, 80)
+    GREY = display.create_pen(132, 132, 132)
+    RED = display.create_pen(250, 132, 132)
     display.set_backlight(0.7)
     if _FB:
         display_col()
     else:
         # Show Logo
         display_image("Logo.jpg")
+#    display_Battery()
 #    display_BTlogo()
 #    display_dir()
 else:
@@ -446,7 +472,7 @@ ADCZ = ADC(28)   # GPIO28,Pin#34
 
 _BTN = const(22) # GPIO22, Pin#29
 _NX = const(False)
-_NY = const(True) # negiert Y Werte
+_NY = const(False) # True negiert Y Werte
 _NZ = const(False)
 
 btn = Pin(_BTN, Pin.IN, Pin.PULL_UP)
@@ -556,7 +582,10 @@ async def control_task(mode = 0):
             elif 0 == btn_a.value():
                 btn_val = _AKTION[ai]   # toggle/do aktion
             elif 0 == btn_b.value():
-                change_aktion()
+                n += 1
+                if n > 1:
+                    n = 0
+                    change_aktion()
             else:
                 btn_val = 0
             if btn_val in ["u", "d", "l", "r", "cc" "cw"]:
@@ -572,8 +601,17 @@ async def remote_task():
     jetzt = ticks_ms()
     n = 0
 
-    jetzt = ticks_ms()
-    n = 0
+    def do_tele(v):
+        t = v.decode("utf-8").split()
+        if t[0] == 'b':
+            display_Battery(t[1])
+        elif t[0] == 'h':
+            display_Heading(t[1])
+        else:
+            pass #TBD
+
+    p.on_write(do_tele)
+
     while True:
         if p.is_connected():
             # Short burst of queued notifications.
@@ -640,10 +678,6 @@ async def main():
     ]
     if _D:
         tasks.append( asyncio.create_task(display_task()) )
-    try:
-        await asyncio.gather(*tasks)
-    except asyncio.CancelledError:
-        print(f"main(): CancelledError {ticks_ms()}")
-        reset()        # Workaround for CancelledError = Reboot Pico
+    await asyncio.gather(*tasks)
 
 asyncio.run(main())
