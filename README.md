@@ -13,7 +13,7 @@ Hier findet ihr den Quellcode der pico**RC** Fernbedienung für den **PiMowBot**
 - Raspberry Pi Pico W
 - rundes SPI LCD 1.28" Display Modul 240x240 mit GC9A01 Treiber
 - analogen Joystick (Schaltplan, siehe: Joystick-Wiring_diagram.pdf)
-- Custom MicroPython uf2 Firmware von Russ Hughes ( https://github.com/russhughes/gc9a01_mpy/blob/main/firmware/RP2W/firmware.uf2 ) oder dieses hier mit Bluetooth Support ( https://github.com/TGD-Consulting/PiMowBot-RC/blob/main/GC9A01-MicroPythonv1.22_firmware.uf2 ) with bluetooth support
+- Custom MicroPython uf2 Firmware von Russ Hughes ( https://github.com/russhughes/gc9a01_mpy/blob/main/firmware/RP2W/firmware.uf2 ) oder dieses hier mit Bluetooth Support ( https://github.com/TGD-Consulting/PiMowBot-RC/blob/main/GC9A01-MicroPythonv1.22_firmware.uf2 )
 
 ### Steuerung über Bluetooth:
 - Zur Steuerung über Bluetooth ist das Skript *RControlBLE.py* zu verwenden.
