@@ -264,7 +264,7 @@ class BLERemoteControl:
         # Track connections so we can send notifications.
         if event == _IRQ_CENTRAL_CONNECT:
             conn_handle, _, addr = data
-            log("New connection from, ", addr)
+            log("New connection from " + str(addr))
             connected = True
             timer.deinit() #blinken beenden
             led.off()      #LED ausschalten
@@ -273,7 +273,7 @@ class BLERemoteControl:
             self._connections.add(conn_handle)
         elif event == _IRQ_CENTRAL_DISCONNECT:
             conn_handle, _, addr = data
-            log("Disconnected ", addr)
+            log("Disconnected " + str(addr))
             self._connections.remove(conn_handle)
             connected = False
             # Blink onboard LED during connect
